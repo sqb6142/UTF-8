@@ -1,0 +1,337 @@
+# CMPEN 331, Lab 2_part2
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+# switch to the Data segment
+	.data
+	# global data is defined here
+
+	# Don't forget the backslash-n (newline character)
+Homework:
+	.asciiz	"CMPEN 331 Homework 2\n"
+Name:
+	.asciiz	"Swayam Bansal\n"
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+# switch to the Text segment
+	.text
+	# the program is defined here
+
+	.globl	main
+main:
+	# Whose program is this?
+	la	$a0, Homework
+	jal	Print_string
+	la	$a0, Name
+	jal	Print_string
+	
+	# int i, j = 2, n = 3;
+	# for (i = 0; i <= 16; i++)
+	#   {
+	#      ... j = testcase[i]
+	#      ... calculate n from j
+	#      ... print i, j and n
+	#   }
+	
+	# register assignments
+	#  $s0    i
+	#  $s1    j = testcase[i]
+	#  $s2    n
+	#  $t0    address of testcase[i]
+	#  $a0    argument to Print_integer, Print_string, etc.
+	
+	#  $s3    binary string '10'
+	#  $s4-s7 hexadecimal ranges in else-if structure
+
+	#  add to this list if you use any other registers
+
+	# initialization
+	li	$s1, 2			# j = 2
+	li	$s2, 3			# n = 3
+	
+	# for (i = 0; i <= 16; i++)
+	li	$s0, 0			# i = 0
+	la	$t0, testcase		# address of testcase[i]
+	bgt	$s0, 16, bottom
+top:
+	lw	$s1, 0($t0)		# j = testcase[i]
+	# calculate n from j
+	
+# Your part starts here
+
+	# intizalising all the ranges to be used in the else if statements
+	# these values are the upper limit, so now the if else condtions would be 
+	# if (code_point < 0x80) and so on
+	li 	$s4, 0x80		# storing the value 0x80 (first condition was <= 0x7F) 
+	li 	$s5, 0x800		# storing the value 0x800 (second condition was <= 0x7FF)
+	li 	$s6, 0x10000		# storing the value 0x10000 (third condition was <= 0xFFFF)
+	li 	$s7, 0x110000		# storing the value 0x110000 (third condition was <= 0x10FFFF)
+	# we use string 10 alot, so saved it, so we dont have to repetedly intizalise it 
+	li	$s3, 2			# 2 is wrtien as 10 in binary, so saving 10
+
+	# start of Case1, now since it is the first if statement, we dont have anything that branches to it
+	# but if the condition is not met, we jump to next else if ...
+	
+	
+	# Case1:
+	# if (j < 0x80) 		Next two lines are writing the if statement 
+	sltu 	$t1, $s1, $s4		# comparing if the value is less than 0x80, if so $t1 would be 1
+	beq 	$t1, $zero, Case2  	# if the value of $t1 is zero, aka value > 0x80, jump to next else if (case2)
+	
+	#	{	// writing the code inside if statement 
+	# 		// The output needs to be of the form of 0xxxxxxx
+	# 		// we can simply assign the value of j to n
+	add 	$s2, $s1, $zero		# assigning n = j
+	j 	leave			# since we are done with if, we need to exit the if, else if statements block
+	#	}	// closing the first if statement 
+	
+	
+	Case2: 				# for j within 0x800
+	# else if (j < 0x800)		Next two lines are writing the else_if statement
+	sltu 	$t1, $s1, $s5		# comparing if the value is less than 0x800, if so $t1 would be 1
+	beq 	$t1, $zero, Case3 	# if the value of $t1 is zero, aka value > 0x800, jump to next else if (case3)
+	#	{	// writing the code inside if statement 
+	#		// the output needs to be of the form 110xxxxx 10xxxxxx
+	# 		// we cannot simply assign the value of j to n
+	#		we need the last 6 bits, and 5 remaining bits
+	#		we know that we can seprate bits using andi operator or or to merge them 
+	
+	andi 	$t1, $s1, 0x3f 		# b ($t1) = last 6 bits of j -- 0x3F == 111111 so we get six bits 
+	#		// we dont just need last six bits, we need to make it 10b
+	sll	$t2, $s3, 6		# $s3 is just 10, so shifting it by 6 makes it 10xxxxxx
+	or	$t1, $t1, $t2 		# now we can or them together to find 10b
+	add	$s2, $t1, $zero		# copy b into n
+	#		// n now has 10b
+	
+	srl 	$t1, $s1, 6		# right shifting by 6 means, removing the last 6 bits in the number -- $t1 stores a
+	sll 	$t1, $t1, 8 		# shifting a by 8 would give us a xxxxxxxx
+	li	$t2, 6			# 6 is 110 in binary
+	sll 	$t2, $t2, 13		# shifting 110 by 13 makes it 110xxxxx xxxxxxxx
+	or 	$t1, $t1, $t2 		# now we can or them to make the number as 110aaaaa xxxxxxxx
+	or 	$s2, $s2, $t1		# we now add $t2 to n, which already has 10bbbbbb
+	#		// n is now 110a 10b
+	
+	j 	leave			# since we are done with else_if, we need to exit the if, else if statements block
+	#	}	// closing the second if statement or (the case of number being less than 0x800)
+	
+	
+	Case3: 				# for j within 0x10000
+	# else if (j < 0x10000)		Next two lines are writing the else_if statement
+	sltu 	$t1, $s1, $s6		# comparing if the value is less than 0x10000, if so $t1 would be 1
+	beq 	$t1, $zero, Case4 	# if the value of $t1 is zero, aka value > 0x10000, jump to next else if (case4)
+	#	{	// writing the code inside if statement 
+	#		// the output needs to be of the form 1110xxxx 10xxxxxx 10xxxxxx
+	#		we need the last 4 sarting bits, then 6 trainling bits and finally the last 6 bits
+	
+	# using the andi and logical shifter we can seperate the number into its 3 parts - a, b and c 
+	andi 	$t1, $s1, 0x3f 		# c($t1) == last 6 bits of the number, 0x3F -- 111111, by anding the number to this, we can sperate the last 6 bits
+	#		// we dont just need last six bits, we need to make it 10c
+	sll	$t2, $s3, 6		# $s3 is just 10, so shifting it by 6 makes it 10xxxxxx
+	or	$t1, $t1, $t2 		# now we can or them together to find 10c
+	add	$s2, $t1, $zero		# copy c into n
+	#		// n now has 10c
+	
+	srl 	$t1, $s1, 6		# right shifting by 6 means, removing the last 6 bits in the number
+	andi 	$t1, $t1, 0x3f 		# now that, we have removed c, we can find b simillar to how we got c 
+	#		// we dont just need middle six bits, we need to make it 10b 10c
+	sll 	$t1, $t1, 8 		# $t1 is b, so we shift it by 8 to make it b xxxxxxxx 
+	sll 	$t2, $s3, 14 		# $s3 is 10, shifting by 14 makes it 10xxxxxx xxxxxxxx
+	or 	$t1, $t1, $t2		# we can add this to b, to make it of the form 10b xxxxxxxx
+	or 	$s2, $s2, $t1		# now oring it to n
+	#		// n now has 10b 10c
+	  
+	srl 	$t1, $s1, 12 		# right shifting by 12 means, removing the last 12 bits in the number (or removing b and c) -- $t2 stroes a 
+	sll 	$t1, $t1, 16		# $t1 is a, so we shift it by 16 to make it a xxxxxxxx xxxxxxxx
+	#		// we dont just need first five bits, we need to make it 110a xxxxxxxx xxxxxxxx
+	li	$t2, 14			# 14 is 1110 in binary	
+	sll 	$t2, $t2, 20		# $t6 is 1110, shifting it by 20 makes it 1110xxxx xxxxxxxx xxxxxxxx
+	or 	$t1, $t1, $t2		# or concatinates the strings, making $t2 as 1110a xxxxxxxx xxxxxxxx
+	or 	$s2, $s2, $t1		# now we can just concatinate it with n
+	#		// n now is 1110a 10b 10c
+	
+	j 	leave			# since we are done with else_if, we need to exit the if, else if statements block
+	#	}	// closing the second if statement or (the case of number being less than 0xFFFF)
+	
+	
+	Case4: 				# for j within 0x110000
+	# else if (j < 0x110000)		Next two lines are writing the else_if statement
+	sltu 	$t1, $s1, $s7		# comparing if the value is less than 0x110000, if so $t1 would be 1
+	beq 	$t1, $zero, Case5 	# if the value of $t1 is zero, aka value > 0x110000, jump to next else if (case5)
+	#	{	// writing the code inside if statement 
+	#		// the output needs to be of the form 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+	#		we need the last 3 sarting bits, then 6 trainling bits, 6 after that and finally the last 6 bits
+	
+	# using the andi and logical shifter we can seperate the number into its 4 parts - a, b, c, and d 
+	# simillar to what we have been doing in the above two cases 
+	andi 	$t1, $s1, 0x3f 		# we get d from this one or the last six bits
+	#		// we dont just need last six bits, we need to make it 10d
+	sll	$t2, $s3, 6		# $s3 is just 10, so shifting it by 6 makes it 10xxxxxx
+	or	$t1, $t1, $t2 		# now we can or them together to find 10d
+	add	$s2, $t1, $zero		# copy d into n
+	#		// n now has 10d
+	
+	srl 	$t1, $s1, 6		# right shifting by 6 means, removing the last 6 bits in the number
+	andi 	$t1, $t1, 0x3f 		# we get c from this one
+	sll 	$t1, $t1, 8 		# $t1 is c, so we shift it by 8 to make it c xxxxxxxx
+	#		// we dont just need c xxxxxxx, we need to make it 10c 10d
+	sll	$t2, $s3, 14		# $s3 is just 10, so shifting it by 14 makes it 10xxxxxx xxxxxxxx
+	or	$t1, $t1, $t2 		# now we can or them together to find 10c xxxxxxxx
+	or 	$s2, $s2, $t1		# now oring it to n
+	#		// n now has 10c 10d
+	
+	srl 	$t1, $s1, 12		# right shifting by 12 means, removing the last 12 bits in the number
+	andi 	$t1, $t1, 0x3f 		# we get b from this one
+	sll 	$t1, $t1, 16 		# $t1 is b, so we shift it by 16 to make it b xxxxxxxx xxxxxxxx
+	#		// we dont just need b xxxxxxxx xxxxxxxx xxxxxxx, we need to make it 10b 10c 10d
+	sll	$t2, $s3, 22		# $s3 is just 10, so shifting it by 22 makes it 10xxxxxx xxxxxxxx xxxxxxxx
+	or	$t1, $t1, $t2 		# now we can or them together to find 10b xxxxxxxx xxxxxxxx
+	or 	$s2, $s2, $t1		# now oring it to n
+	#		// n now has 10b 10c 10d
+	
+	srl 	$t1, $s1, 18		# right shifting by 18 means, removing the last 18 bits in the number
+	sll 	$t1, $t1, 24 		# $t1 is a, so we shift it by 16 to make it a xxxxxxxx xxxxxxxx xxxxxxxx
+	#		// we dont just need a xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxx, we need to make it 11110a 10b 10c 10d
+	li	$t2, 30			# 30 is 11110 in binary
+	sll	$t2, $t2, 27		# shifting it by 27 makes it 11110xxx xxxxxxxx xxxxxxxx xxxxxxxx
+	or	$t1, $t1, $t2 		# now we can or them together to find 11110a xxxxxxxx xxxxxxxx xxxxxxxx
+	or 	$s2, $s2, $t1		# now oring it to n
+	#		// n now has 1110a 10b 10c 10d
+	
+	j 	leave			# since we are done with else_if, we need to exit the if, else if statements block
+	#	}	// closing the second if statement or (the case of number being less than 0x10 FFFF)
+	
+	
+	Case5: # else {
+	# // j is outside the UTF-8 range of character codes 
+	
+	li 	$s2, 0xFFFFFFFF 	# // n = 0xFFFFFFFF
+	# }
+	
+	leave:
+# Your part ends here
+	
+	# print i, j and n
+	move	$a0, $s0	# i
+	jal	Print_integer
+	la	$a0, sp		# space
+	jal	Print_string
+	move	$a0, $s1	# j
+	jal	Print_hex
+	la	$a0, sp		# space
+	jal	Print_string
+	move	$a0, $s2	# n
+	jal	Print_hex
+	la	$a0, sp		# space
+	jal	Print_string
+	move	$a0, $s1	# j
+	jal	Print_bin
+	la	$a0, sp		# space
+	jal	Print_string
+	move	$a0, $s2	# n
+	jal	Print_bin
+	la	$a0, nl		# newline
+	jal	Print_string
+	
+	# for (i = 0; i <= 16; i++)
+	addi	$s0, $s0, 1	# i++
+	addi	$t0, $t0, 4	# address of testcase[i]
+	ble	$s0, 16, top	# i <= 16
+bottom:
+	
+	la	$a0, done	# mark the end of the program
+	jal	Print_string
+	
+	jal	Exit0	# end the program, default return status
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+	.data
+	# global data is defined here
+sp:
+	.asciiz	" "	# space
+nl:
+	.asciiz	"\n"	# newline
+done:
+	.asciiz	"All done!\n"
+
+testcase:
+	# UTF-8 representation is one byte
+	.word 0x0000	# nul		# Basic Latin, 0000 - 007F
+	.word 0x0024	# $ (dollar sign)
+	.word 0x007E	# ~ (tilde)
+	.word 0x007F	# del
+
+	# UTF-8 representation is two bytes
+	.word 0x0080	# pad		# Latin-1 Supplement, 0080 - 00FF
+	.word 0x00A2	# cent sign
+	.word 0x0627	# Arabic letter alef
+	.word 0x07FF	# unassigned
+
+	# UTF-8 representation is three bytes
+	.word 0x0800
+	.word 0x20AC	# Euro sign
+	.word 0x2233	# anticlockwise contour integral sign
+	.word 0xFFFF
+
+	# UTF-8 representation is four bytes
+	.word 0x10000
+	.word 0x10348	# Hwair, see http://en.wikipedia.org/wiki/Hwair
+	.word 0x22E13	# randomly-chosen character
+	.word 0x10FFFF
+
+	.word 0x89ABCDEF	# randomly chosen bogus value
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+# Wrapper functions around some of the system calls
+# See P&H COD, Fig. A.9.1, for the complete list.
+
+	.text
+
+	.globl	Print_integer
+Print_integer:	# print the integer in register $a0 (decimal)
+	li	$v0, 1
+	syscall
+	jr	$ra
+
+	.globl	Print_string
+Print_string:	# print the string whose starting address is in register $a0
+	li	$v0, 4
+	syscall
+	jr	$ra
+
+	.globl	Exit
+Exit:		# end the program, no explicit return status
+	li	$v0, 10
+	syscall
+	jr	$ra	# this instruction is never executed
+
+	.globl	Exit0
+Exit0:		# end the program, default return status
+	li	$a0, 0	# return status 0
+	li	$v0, 17
+	syscall
+	jr	$ra	# this instruction is never executed
+
+	.globl	Exit2
+Exit2:		# end the program, with return status from register $a0
+	li	$v0, 17
+	syscall
+	jr	$ra	# this instruction is never executed
+
+# The following syscalls work on MARS, but not on QtSPIM
+
+	.globl	Print_hex
+Print_hex:	# print the integer in register $a0 (hexadecimal)
+	li	$v0, 34
+	syscall
+	jr	$ra
+
+	.globl	Print_bin
+Print_bin:	# print the integer in register $a0 (binary)
+	li	$v0, 35
+	syscall
+	jr	$ra
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
